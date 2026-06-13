@@ -268,7 +268,7 @@ const Dashboard = () => {
       let activeConvId = currentConversationId;
 
       // Call the SSE streaming query endpoint
-      const response = await fetch(`${API_URL}/conversations/query`, {
+      let response = await fetch(`${API_URL}/conversations/query`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -283,6 +283,42 @@ const Dashboard = () => {
         }),
         credentials: 'include' // Sends HTTP-only cookies/tokens
       });
+
+      // Handle token expiration/refresh for native fetch stream
+      if (response.status === 401) {
+        let errData = null;
+        try {
+          const cloneText = await response.clone().text();
+          errData = JSON.parse(cloneText);
+        } catch (_) {}
+
+        if (errData && errData.code === 'TOKEN_EXPIRED') {
+          console.log('[Streaming Query] Access token expired/missing. Attempting token refresh...');
+          try {
+            await axiosInstance.post('/auth/refresh');
+            // Retry the fetch call after successful refresh
+            response = await fetch(`${API_URL}/conversations/query`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                message: msg,
+                conversationId: activeConvId || null,
+                filters: {
+                  folderIds: chatFolders.has('all') ? [] : Array.from(chatFolders),
+                  documentIds: Array.from(selectedDocs),
+                }
+              }),
+              credentials: 'include'
+            });
+          } catch (refreshErr) {
+            console.error('[Streaming Query] Token refresh failed:', refreshErr);
+            window.location.href = '/login';
+            return;
+          }
+        }
+      }
 
       if (!response.ok) {
         const errText = await response.text();
