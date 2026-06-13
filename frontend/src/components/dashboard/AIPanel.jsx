@@ -372,27 +372,29 @@ const AIPanel = ({
 
       {/* Input */}
       <form onSubmit={onSendChat} className="p-3 border-t border-[#1c1f30] flex items-center gap-2">
-        <input
-          type="text"
-          value={chatInput}
-          onChange={(e) => onChatInputChange(e.target.value)}
-          placeholder={isListening ? "Listening... Speak your question now." : "Ask about your documents..."}
-          disabled={isAiTyping || isListening}
-          className="flex-1 bg-[#1a1c2e] border border-[#20223a] rounded-xl py-2.5 px-3.5 text-xs text-[#e4e4e7] placeholder-[#3f3f52] outline-none focus:border-[#5b4fd4]/60 transition-colors disabled:opacity-60"
-        />
-        <button
-          type="button"
-          onClick={handleMicToggle}
-          disabled={isAiTyping}
-          title={isListening ? "Stop listening" : "Ask with voice"}
-          className={`w-8 h-8 rounded-xl flex items-center justify-center cursor-pointer transition-all shrink-0 border ${
-            isListening
-              ? 'bg-[#ef4444]/20 border-[#ef4444] text-[#ef4444] animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.4)]'
-              : 'bg-[#1a1c2e] border-[#20223a] hover:border-[#2e3256] text-[#a29bfe] hover:text-[#c4c1fc]'
-          } disabled:opacity-40 disabled:cursor-not-allowed`}
-        >
-          {isListening ? <FiMicOff size={13} /> : <FiMic size={13} />}
-        </button>
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => onChatInputChange(e.target.value)}
+            placeholder={isListening ? "Listening... Speak your question now." : "Ask about your documents..."}
+            disabled={isAiTyping || isListening}
+            className="w-full bg-[#1a1c2e] border border-[#20223a] rounded-xl py-2.5 pl-3.5 pr-10 text-xs text-[#e4e4e7] placeholder-[#3f3f52] outline-none focus:border-[#5b4fd4]/60 transition-colors disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={handleMicToggle}
+            disabled={isAiTyping}
+            title={isListening ? "Stop listening" : "Ask with voice"}
+            className={`absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-all border ${
+              isListening
+                ? 'bg-[#ef4444]/20 border-[#ef4444] text-[#ef4444] animate-pulse shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                : 'bg-transparent border-transparent text-[#a29bfe] hover:text-[#c4c1fc]'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+          >
+            {isListening ? <FiMicOff size={12} /> : <FiMic size={12} />}
+          </button>
+        </div>
         <button
           type="submit"
           id="chat-submit-btn"
