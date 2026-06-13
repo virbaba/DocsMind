@@ -8,6 +8,9 @@ import folderRoutes from './routes/folderRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import conversationRoutes from './routes/conversationRoutes.js';
 
+// Import workers to start background queue processing
+import './workers/pdfWorker.js';
+
 // Load environment variables
 dotenv.config();
 

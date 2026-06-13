@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { FiLogOut } from 'react-icons/fi';
+import { FiLogOut, FiX, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 
 // Imports from extracted files
 import useResize from '../hooks/useResize.js';
@@ -13,6 +13,7 @@ import AIPanel from '../components/dashboard/AIPanel.jsx';
 import UploadModal from '../components/dashboard/UploadModal.jsx';
 import PDFViewerModal from '../components/dashboard/PDFViewerModal.jsx';
 import CreateFolderModal from '../components/dashboard/CreateFolderModal.jsx';
+import ConfirmDeleteModal from '../components/dashboard/ConfirmDeleteModal.jsx';
 import axiosInstance from '../api/axiosInstance.js';
 
 const Dashboard = () => {
@@ -58,9 +59,20 @@ const Dashboard = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [documents, setDocuments] = useState([]);
 
+  // Toast notifications state and helper
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast((prev) => (prev && prev.message === message ? null : prev));
+    }, 4500);
+  };
+
   // New features state
   const [isAiPanelOpen, setIsAiPanelOpen] = useState(true);
   const [openDoc, setOpenDoc] = useState(null); // Track opened PDF
+  const [docToDelete, setDocToDelete] = useState(null); // Track document to confirm delete
+  const [isDeletingDoc, setIsDeletingDoc] = useState(false); // Track delete loading state
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false); // Custom create folder modal
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
@@ -87,6 +99,8 @@ const Dashboard = () => {
           category: d.category,
           folder: d.folder, // Folder ObjectId or null
           url: d.url,
+          status: d.status || 'completed',
+          processingError: d.processingError || null,
         }));
         setDocuments(fetchedDocs);
       } catch (err) {
@@ -95,6 +109,48 @@ const Dashboard = () => {
     };
     fetchData();
   }, []);
+
+  // Poll document statuses in background if any document is processing or queued
+  useEffect(() => {
+    const hasPendingDocs = documents.some((d) => d.status === 'queued' || d.status === 'processing');
+    if (!hasPendingDocs) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const docsRes = await axiosInstance.get('/documents');
+        const fetchedDocs = docsRes.data.map((d) => ({
+          id: d._id,
+          name: d.name,
+          fullName: d.fullName,
+          size: d.size,
+          category: d.category,
+          folder: d.folder,
+          url: d.url,
+          status: d.status || 'completed',
+          processingError: d.processingError || null,
+        }));
+
+        setDocuments((prevDocs) => {
+          const idToPrevStatus = new Map(prevDocs.map((d) => [d.id, d.status]));
+          fetchedDocs.forEach((newDoc) => {
+            const prevStatus = idToPrevStatus.get(newDoc.id);
+            if (prevStatus && prevStatus !== newDoc.status) {
+              if (newDoc.status === 'completed') {
+                showToast(`"${newDoc.name}" has been successfully indexed and is ready!`, 'success');
+              } else if (newDoc.status === 'failed') {
+                showToast(`Failed to index "${newDoc.name}": ${newDoc.processingError || 'Unknown error'}`, 'error');
+              }
+            }
+          });
+          return fetchedDocs;
+        });
+      } catch (err) {
+        console.error('Error polling document statuses:', err);
+      }
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [documents]);
 
   // Filtered documents for middle panel based on viewedFolder
   const visibleDocs = documents.filter((doc) => {
@@ -311,54 +367,80 @@ const Dashboard = () => {
     }
   };
 
-  // Mock upload implementation (indexed directly to MongoDB database)
-  const handleMockUpload = () => {
+  // Real Axios PDF upload implementation
+  const handleUpload = async (file) => {
     setIsUploading(true);
     setUploadProgress(0);
-    const names = ['Research-Notes-2026.pdf', 'Project-Brief-v3.pdf', 'Contract-Draft.pdf'];
-    const picked = names[Math.floor(Math.random() * names.length)];
 
-    const interval = setInterval(() => {
-      setUploadProgress((p) => {
-        if (p >= 100) {
-          clearInterval(interval);
-          return 100;
-        }
-        return p + 20;
+    const formData = new FormData();
+    formData.append('file', file);
+    if (viewedFolder !== 'all') {
+      formData.append('folderId', viewedFolder);
+    }
+
+    try {
+      const response = await axiosInstance.post('/documents', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        },
       });
-    }, 100);
 
-    setTimeout(async () => {
-      try {
-        const payload = {
-          fullName: picked,
-          size: `${(Math.random() * 4 + 0.5).toFixed(1)} MB`,
-          category: viewedFolder === 'all' ? 'Project Docs' : activeFolder?.name || 'Project Docs',
-          folderId: viewedFolder === 'all' ? null : viewedFolder,
-        };
+      const newDoc = {
+        id: response.data._id,
+        name: response.data.name,
+        fullName: response.data.fullName,
+        size: response.data.size,
+        category: response.data.category,
+        folder: response.data.folder,
+        url: response.data.url,
+        status: response.data.status || 'queued',
+        processingError: response.data.processingError || null,
+      };
 
-        const response = await axiosInstance.post('/documents', payload);
-        const newDoc = {
-          id: response.data._id,
-          name: response.data.name,
-          fullName: response.data.fullName,
-          size: response.data.size,
-          category: response.data.category,
-          folder: response.data.folder,
-          url: response.data.url,
-        };
-        setDocuments((d) => [newDoc, ...d]);
-        setIsUploading(false);
-        setIsUploadOpen(false);
-        setUploadProgress(0);
-      } catch (err) {
-        clearInterval(interval);
-        setIsUploading(false);
-        setIsUploadOpen(false);
-        setUploadProgress(0);
-        alert(err.response?.data?.message || 'Error uploading document.');
-      }
-    }, 600);
+      setDocuments((d) => [newDoc, ...d]);
+      setIsUploading(false);
+      setIsUploadOpen(false);
+      setUploadProgress(0);
+      showToast('Document uploaded successfully. Indexing started!', 'success');
+    } catch (err) {
+      setIsUploading(false);
+      setIsUploadOpen(false);
+      setUploadProgress(0);
+      const msg = err.response?.data?.message || 'Error uploading PDF file.';
+      showToast(msg, 'error');
+    }
+  };
+
+  // Retry document indexing
+  const handleRetryDoc = async (doc) => {
+    try {
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === doc.id ? { ...d, status: 'queued', processingError: null } : d))
+      );
+      showToast(`Restarting indexing for "${doc.name}"...`, 'success');
+      const response = await axiosInstance.post(`/documents/${doc.id}/retry`);
+      setDocuments((prev) =>
+        prev.map((d) =>
+          d.id === doc.id
+            ? {
+                ...d,
+                status: response.data.status,
+                processingError: response.data.processingError || null,
+              }
+            : d
+        )
+      );
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Error restarting indexing process.';
+      showToast(msg, 'error');
+      setDocuments((prev) =>
+        prev.map((d) => (d.id === doc.id ? { ...d, status: 'failed' } : d))
+      );
+    }
   };
 
   // Rename handler
@@ -377,14 +459,17 @@ const Dashboard = () => {
           return doc;
         })
       );
+      showToast('Document renamed successfully.', 'success');
     } catch (err) {
-      alert(err.response?.data?.message || 'Error renaming document.');
+      const msg = err.response?.data?.message || 'Error renaming document.';
+      showToast(msg, 'error');
     }
   };
 
   // Delete handler
   const handleDeleteDoc = async (id) => {
     try {
+      setIsDeletingDoc(true);
       await axiosInstance.delete(`/documents/${id}`);
       setDocuments((prev) => prev.filter((doc) => doc.id !== id));
       setSelectedDocs((prev) => {
@@ -392,8 +477,20 @@ const Dashboard = () => {
         next.delete(id);
         return next;
       });
+      showToast('Document deleted successfully.', 'success');
+      setDocToDelete(null);
     } catch (err) {
-      alert(err.response?.data?.message || 'Error deleting document.');
+      const msg = err.response?.data?.message || 'Error deleting document.';
+      showToast(msg, 'error');
+    } finally {
+      setIsDeletingDoc(false);
+    }
+  };
+
+  const triggerDeleteDocConfirm = (id) => {
+    const doc = documents.find((d) => d.id === id);
+    if (doc) {
+      setDocToDelete(doc);
     }
   };
 
@@ -459,7 +556,8 @@ const Dashboard = () => {
           onUploadClick={() => setIsUploadOpen(true)}
           onOpenDoc={setOpenDoc}
           onRenameDoc={handleRenameDoc}
-          onDeleteDoc={handleDeleteDoc}
+          onDeleteDoc={triggerDeleteDocConfirm}
+          onRetryDoc={handleRetryDoc}
         />
 
         {/* Collapsible Panel 3 — AI Assistant */}
@@ -502,7 +600,7 @@ const Dashboard = () => {
         }}
         isUploading={isUploading}
         uploadProgress={uploadProgress}
-        onUpload={handleMockUpload}
+        onUpload={handleUpload}
       />
 
       <CreateFolderModal
@@ -513,6 +611,41 @@ const Dashboard = () => {
       />
 
       <PDFViewerModal doc={openDoc} onClose={() => setOpenDoc(null)} />
+
+      <ConfirmDeleteModal
+        isOpen={docToDelete !== null}
+        onClose={() => setDocToDelete(null)}
+        onConfirm={() => handleDeleteDoc(docToDelete.id)}
+        title="Delete Document"
+        message={`Are you sure you want to delete "${docToDelete?.fullName || docToDelete?.name}"? This action cannot be undone.`}
+        isLoading={isDeletingDoc}
+      />
+
+      {/* Toast Notifications Overlay */}
+      {toast && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 animate-toast">
+          <div
+            className={`px-4.5 py-3 rounded-xl border text-xs font-semibold shadow-[0_12px_40px_rgba(0,0,0,0.6)] flex items-center gap-3 backdrop-blur-md transition-all duration-300 ${
+              toast.type === 'success'
+                ? 'bg-[#0f2d19]/80 border-[#22c55e]/30 text-[#4ade80]'
+                : 'bg-[#2d0f0f]/80 border-[#ef4444]/30 text-[#f87171]'
+            }`}
+          >
+            {toast.type === 'success' ? (
+              <FiCheckCircle size={15} className="text-[#4ade80]" />
+            ) : (
+              <FiAlertCircle size={15} className="text-[#f87171]" />
+            )}
+            <span className="tracking-wide">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="p-0.5 hover:bg-white/10 rounded transition-colors text-[#a1a1aa] hover:text-white cursor-pointer ml-1"
+            >
+              <FiX size={12} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

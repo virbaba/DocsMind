@@ -1,6 +1,7 @@
 import express from 'express';
-import { getDocuments, createDocument, renameDocument, deleteDocument } from '../controllers/documentController.js';
+import { getDocuments, createDocument, renameDocument, deleteDocument, retryDocument } from '../controllers/documentController.js';
 import protect from '../middleware/protect.js';
+import { upload } from '../config/cloudinary.js';
 
 const router = express.Router();
 
@@ -9,7 +10,10 @@ router.use(protect);
 
 router.route('/')
   .get(getDocuments)
-  .post(createDocument);
+  .post(upload.single('file'), createDocument);
+
+router.route('/:id/retry')
+  .post(retryDocument);
 
 router.route('/:id')
   .put(renameDocument)

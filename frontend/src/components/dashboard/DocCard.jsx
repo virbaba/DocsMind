@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiFileText, FiMoreVertical, FiTrash2, FiEdit2, FiEye } from 'react-icons/fi';
+import { FiFileText, FiMoreVertical, FiTrash2, FiEdit2, FiEye, FiRefreshCw } from 'react-icons/fi';
 
-const DocCard = ({ doc, isSelected, onClick, onOpen, onRename, onDelete }) => {
+const DocCard = ({ doc, isSelected, onClick, onOpen, onRename, onDelete, onRetry }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [renameValue, setRenameValue] = useState(doc.fullName || doc.name);
@@ -31,6 +31,7 @@ const DocCard = ({ doc, isSelected, onClick, onOpen, onRename, onDelete }) => {
   const handleOpenClick = (e) => {
     e.stopPropagation();
     setIsMenuOpen(false);
+    if (doc.status && doc.status !== 'completed') return;
     if (onOpen) onOpen(doc);
   };
 
@@ -54,9 +55,7 @@ const DocCard = ({ doc, isSelected, onClick, onOpen, onRename, onDelete }) => {
   const handleDeleteClick = (e) => {
     e.stopPropagation();
     setIsMenuOpen(false);
-    if (window.confirm(`Are you sure you want to delete "${doc.fullName || doc.name}"?`)) {
-      if (onDelete) onDelete(doc.id);
-    }
+    if (onDelete) onDelete(doc.id);
   };
 
   const handleCardClick = () => {
@@ -74,6 +73,33 @@ const DocCard = ({ doc, isSelected, onClick, onOpen, onRename, onDelete }) => {
           : 'border-[#1e2035] bg-[#141628] hover:border-[#2e3256] hover:bg-[#171930]'
       }`}
     >
+      {/* Status Badge */}
+      {doc.status && doc.status !== 'completed' && (
+        doc.status === 'failed' ? (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onRetry) onRetry(doc);
+            }}
+            className="absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded-md text-[8px] font-extrabold uppercase tracking-wider border backdrop-blur-sm bg-[#2d0f0f]/95 border-[#ef4444]/40 text-[#f87171] hover:bg-[#3f1616] hover:border-[#ef4444]/60 transition-colors flex items-center gap-1 shadow-md cursor-pointer"
+            title={`${doc.processingError || 'Indexing failed'}. Click to retry.`}
+          >
+            <FiRefreshCw size={8} />
+            <span>Failed (Retry)</span>
+          </button>
+        ) : (
+          <div
+            className={`absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-wider border backdrop-blur-sm ${
+              doc.status === 'queued'
+                ? 'bg-[#181a2e]/80 border-[#3b3db8]/30 text-[#818cf8] animate-pulse'
+                : 'bg-[#261f18]/80 border-[#d97706]/30 text-[#f59e0b] animate-pulse'
+            }`}
+          >
+            {doc.status === 'processing' ? 'Indexing' : doc.status}
+          </div>
+        )
+      )}
+
       {/* 3-dot Menu Trigger */}
       {!isEditing && (
         <div ref={menuRef} className="absolute top-2 right-2 z-20">
@@ -89,11 +115,13 @@ const DocCard = ({ doc, isSelected, onClick, onOpen, onRename, onDelete }) => {
             <div className="absolute right-0 mt-1 bg-[#10121a] border border-[#20223a] rounded-lg shadow-xl py-1 z-30 min-w-[110px] flex flex-col overflow-hidden">
               <button
                 onClick={handleOpenClick}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-[#e4e4e7] hover:bg-[#1c1f30] w-full text-left transition-colors cursor-pointer"
+                disabled={doc.status && doc.status !== 'completed'}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-[#e4e4e7] hover:bg-[#1c1f30] disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed w-full text-left transition-colors cursor-pointer"
               >
                 <FiEye size={12} className="text-[#a29bfe]" />
                 Open
               </button>
+
               <button
                 onClick={handleRenameStart}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-[#e4e4e7] hover:bg-[#1c1f30] w-full text-left transition-colors cursor-pointer"
