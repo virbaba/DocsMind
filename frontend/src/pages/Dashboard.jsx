@@ -564,7 +564,27 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-[#0c0d12] text-[#e4e4e7] flex flex-col overflow-hidden font-sans select-none">
+    <>
+      {/* Mobile Blocker Warning Screen */}
+      <div className="md:hidden fixed inset-0 z-[9999] bg-[#0c0d12] text-[#e4e4e7] flex flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="max-w-xs flex flex-col items-center gap-5">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#5b4fd4] to-[#4035a8] flex items-center justify-center shadow-[0_4px_20px_rgba(91,79,212,0.4)] animate-pulse">
+            <img src="/images/docs_mind_logo.png?v=3" alt="DocsMind" className="w-10 h-10 object-contain" />
+          </div>
+          <h2 className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white to-[#a29bfe] bg-clip-text text-transparent">
+            DocsMind Workspace
+          </h2>
+          <p className="text-xs text-[#a1a1aa] leading-relaxed">
+            DocsMind's split-screen workspace is optimized for larger displays. For the best document management and AI chat experience, please visit us on a **tablet, laptop, or desktop computer**.
+          </p>
+          <div className="text-[10px] text-[#52525b] border border-[#1c1f30] rounded-lg py-1.5 px-3 bg-[#10121a] font-mono">
+            Requires screen width &ge; 768px
+          </div>
+        </div>
+      </div>
+
+      {/* Main Desktop Dashboard Container */}
+      <div className="hidden md:flex h-screen w-screen bg-[#0c0d12] text-[#e4e4e7] flex flex-col overflow-hidden font-sans select-none">
       {/* Topbar */}
       <header className="h-12 shrink-0 flex items-center justify-between px-4 bg-[#10121a] border-b border-[#1c1f30] z-30">
         <div className="flex items-center gap-2.5">
@@ -715,7 +735,8 @@ const Dashboard = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
 
