@@ -148,9 +148,7 @@ export const queryRAG = async (req, res) => {
     const searchFilter = {
       $or: [
         { ownerId: targetUserId.toString() },
-        { ownerId: mongoose.Types.ObjectId.isValid(targetUserId) ? new mongoose.Types.ObjectId(targetUserId) : targetUserId },
-        { 'metadata.ownerId': targetUserId.toString() },
-        { 'metadata.ownerId': mongoose.Types.ObjectId.isValid(targetUserId) ? new mongoose.Types.ObjectId(targetUserId) : targetUserId }
+        { ownerId: mongoose.Types.ObjectId.isValid(targetUserId) ? new mongoose.Types.ObjectId(targetUserId) : targetUserId }
       ]
     };
 
@@ -160,10 +158,8 @@ export const queryRAG = async (req, res) => {
         filters.documentIds.forEach(id => {
           if (id) {
             docFilterList.push({ documentId: id.toString() });
-            docFilterList.push({ 'metadata.documentId': id.toString() });
             if (mongoose.Types.ObjectId.isValid(id)) {
               docFilterList.push({ documentId: new mongoose.Types.ObjectId(id) });
-              docFilterList.push({ 'metadata.documentId': new mongoose.Types.ObjectId(id) });
             }
           }
         });
@@ -175,10 +171,8 @@ export const queryRAG = async (req, res) => {
         filters.folderIds.forEach(id => {
           if (id) {
             folderFilterList.push({ folderId: id.toString() });
-            folderFilterList.push({ 'metadata.folderId': id.toString() });
             if (mongoose.Types.ObjectId.isValid(id)) {
               folderFilterList.push({ folderId: new mongoose.Types.ObjectId(id) });
-              folderFilterList.push({ 'metadata.folderId': new mongoose.Types.ObjectId(id) });
             }
           }
         });
