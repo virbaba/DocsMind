@@ -267,7 +267,7 @@ const AIPanel = ({
                   </div>
                 )}
                 <div
-                  className={`rounded-2xl py-2.5 px-3.5 text-xs leading-relaxed ${
+                  className={`rounded-2xl py-2.5 px-3.5 text-xs leading-relaxed select-text ${
                     isAi
                       ? 'bg-[#1a1c2e] border border-[#20223a] text-[#d4d4d8] rounded-tl-none'
                       : 'bg-[#5b4fd4] text-white rounded-tr-none'
