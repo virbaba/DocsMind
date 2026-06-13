@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiCpu, FiX, FiFolder, FiChevronRight, FiSend, FiChevronDown, FiPlus, FiClock, FiTrash2 } from 'react-icons/fi';
+import { FiCpu, FiX, FiFolder, FiChevronRight, FiSend, FiChevronDown, FiPlus, FiClock, FiTrash2, FiMic, FiMicOff } from 'react-icons/fi';
 import { CgSpinner } from 'react-icons/cg';
 import axiosInstance from '../../api/axiosInstance.js';
 import ConfirmDeleteModal from './ConfirmDeleteModal.jsx';
@@ -32,6 +32,77 @@ const AIPanel = ({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef(null);
+
+  const onChatInputChangeRef = useRef(onChatInputChange);
+  const onSendChatRef = useRef(onSendChat);
+
+  // Keep refs up-to-date with changing props
+  useEffect(() => {
+    onChatInputChangeRef.current = onChatInputChange;
+    onSendChatRef.current = onSendChat;
+  });
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const rec = new SpeechRecognition();
+      rec.continuous = false;
+      rec.interimResults = false;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        setIsListening(true);
+      };
+
+      rec.onerror = (event) => {
+        console.warn('Speech recognition status:', event.error);
+        setIsListening(false);
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      rec.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (transcript && transcript.trim()) {
+          if (onChatInputChangeRef.current) {
+            onChatInputChangeRef.current(transcript);
+          }
+          if (onSendChatRef.current) {
+            onSendChatRef.current(null, transcript);
+          }
+        }
+      };
+
+      recognitionRef.current = rec;
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, []);
+
+  const handleMicToggle = () => {
+    if (!recognitionRef.current) {
+      alert('Speech Recognition is not supported in this browser. Please use Google Chrome, Safari, or Edge.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error('Failed to start speech recognition:', err);
+      }
+    }
+  };
 
   const handleScroll = () => {
     if (chatContainerRef.current) {
@@ -305,14 +376,27 @@ const AIPanel = ({
           type="text"
           value={chatInput}
           onChange={(e) => onChatInputChange(e.target.value)}
-          placeholder="Ask about your documents..."
-          disabled={isAiTyping}
+          placeholder={isListening ? "Listening... Speak your question now." : "Ask about your documents..."}
+          disabled={isAiTyping || isListening}
           className="flex-1 bg-[#1a1c2e] border border-[#20223a] rounded-xl py-2.5 px-3.5 text-xs text-[#e4e4e7] placeholder-[#3f3f52] outline-none focus:border-[#5b4fd4]/60 transition-colors disabled:opacity-60"
         />
         <button
+          type="button"
+          onClick={handleMicToggle}
+          disabled={isAiTyping}
+          title={isListening ? "Stop listening" : "Ask with voice"}
+          className={`w-8 h-8 rounded-xl flex items-center justify-center cursor-pointer transition-all shrink-0 border ${
+            isListening
+              ? 'bg-[#ef4444]/20 border-[#ef4444] text-[#ef4444] animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.4)]'
+              : 'bg-[#1a1c2e] border-[#20223a] hover:border-[#2e3256] text-[#a29bfe] hover:text-[#c4c1fc]'
+          } disabled:opacity-40 disabled:cursor-not-allowed`}
+        >
+          {isListening ? <FiMicOff size={13} /> : <FiMic size={13} />}
+        </button>
+        <button
           type="submit"
           id="chat-submit-btn"
-          disabled={!chatInput.trim() || isAiTyping}
+          disabled={!chatInput.trim() || isAiTyping || isListening}
           className="w-8 h-8 bg-gradient-to-tr from-[#5b4fd4] to-[#4035a8] hover:from-[#4b3ec2] rounded-xl flex items-center justify-center cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_rgba(91,79,212,0.3)] shrink-0"
         >
           {isAiTyping ? (

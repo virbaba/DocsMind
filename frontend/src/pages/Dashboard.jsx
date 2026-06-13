@@ -252,9 +252,9 @@ const Dashboard = () => {
   };
 
   // AI chat send handler
-  const handleSendChat = async (e) => {
-    if (e) e.preventDefault();
-    const msg = chatInput.trim();
+  const handleSendChat = async (e, overrideMessage) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const msg = (typeof overrideMessage === 'string' ? overrideMessage : chatInput).trim();
     if (!msg || isAiTyping) return;
 
     const newUserMsg = { sender: 'user', text: msg };
