@@ -4,6 +4,7 @@ import {
   getConversationById,
   saveConversation,
   deleteConversation,
+  queryRAG,
 } from '../controllers/conversationController.js';
 import protect from '../middleware/protect.js';
 
@@ -11,6 +12,8 @@ const router = express.Router();
 
 // Apply auth protection to all routes
 router.use(protect);
+
+router.post('/query', queryRAG);
 
 router.route('/')
   .get(getConversations)

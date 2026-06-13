@@ -14,7 +14,7 @@ import UploadModal from '../components/dashboard/UploadModal.jsx';
 import PDFViewerModal from '../components/dashboard/PDFViewerModal.jsx';
 import CreateFolderModal from '../components/dashboard/CreateFolderModal.jsx';
 import ConfirmDeleteModal from '../components/dashboard/ConfirmDeleteModal.jsx';
-import axiosInstance from '../api/axiosInstance.js';
+import axiosInstance, { API_URL } from '../api/axiosInstance.js';
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -266,69 +266,102 @@ const Dashboard = () => {
 
     try {
       let activeConvId = currentConversationId;
-      let title = undefined;
 
-      if (!activeConvId) {
-        title = msg.substring(0, 30);
-        if (msg.length > 30) title += '...';
-      }
-
-      // Save user message to backend
-      const saveRes = await axiosInstance.post('/conversations', {
-        id: activeConvId,
-        title,
-        messages: updatedHistoryWithUser.map((m) => ({ sender: m.sender, text: m.text })),
+      // Call the SSE streaming query endpoint
+      const response = await fetch(`${API_URL}/conversations/query`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: msg,
+          conversationId: activeConvId || null,
+          filters: {
+            folderIds: chatFolders.has('all') ? [] : Array.from(chatFolders),
+            documentIds: Array.from(selectedDocs),
+          }
+        }),
+        credentials: 'include' // Sends HTTP-only cookies/tokens
       });
 
-      if (!activeConvId) {
-        activeConvId = saveRes.data._id;
-        setCurrentConversationId(activeConvId);
+      if (!response.ok) {
+        const errText = await response.text();
+        let errMsg = 'Failed to execute query.';
+        try {
+          const parsed = JSON.parse(errText);
+          errMsg = parsed.message || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
       }
 
-      setTimeout(async () => {
-        const selectedCount = selectedDocs.size;
-        let reply = '';
-        if (selectedCount > 0) {
-          reply = `I am analyzing the ${selectedCount} selected document${
-            selectedCount > 1 ? 's' : ''
-          } across folders. What would you like to know about them?`;
-        } else {
-          if (chatFolders.has('all')) {
-            reply = `I am analyzing all documents in the "All Documents" context. Ask me anything about their contents!`;
-          } else {
-            const names = folders
-              .filter((f) => chatFolders.has(f.id))
-              .map((f) => f.name);
-            if (names.length === 0) {
-              reply = `I am analyzing all documents in the "All Documents" context. Ask me anything about their contents!`;
-            } else {
-              const formattedNames = names.join(', ');
-              reply = `I am analyzing all documents in the "${formattedNames}" folder${
-                names.length > 1 ? 's' : ''
-              } context. Ask me anything about their contents!`;
+      // Hide the initial bouncing loading dots as soon as stream starts receiving data
+      setIsAiTyping(false);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let streamText = '';
+
+      // Append an empty AI message to print chunks into
+      setChatHistory((prev) => [...prev, { sender: 'ai', text: '' }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // Keep partial line in buffer
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (trimmed.startsWith('data: ')) {
+            const dataStr = trimmed.slice(6);
+            if (dataStr === '[DONE]') continue;
+
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.error) {
+                throw new Error(parsed.error);
+              }
+              if (parsed.done) {
+                if (parsed.conversationId) {
+                  setCurrentConversationId(parsed.conversationId);
+                }
+                continue;
+              }
+              if (parsed.text) {
+                streamText += parsed.text;
+                setChatHistory((prev) => {
+                  const copy = [...prev];
+                  if (copy.length > 0 && copy[copy.length - 1].sender === 'ai') {
+                    copy[copy.length - 1] = { sender: 'ai', text: streamText };
+                  }
+                  return copy;
+                });
+              }
+            } catch (err) {
+              console.error('Error parsing stream chunk:', err);
             }
           }
         }
-
-        const newAiMsg = { sender: 'ai', text: reply };
-        const finalHistory = [...updatedHistoryWithUser, newAiMsg];
-        setChatHistory(finalHistory);
-        setIsAiTyping(false);
-
-        // Save AI response
-        await axiosInstance.post('/conversations', {
-          id: activeConvId,
-          messages: finalHistory.map((m) => ({ sender: m.sender, text: m.text })),
-        });
-      }, 1000);
+      }
 
     } catch (err) {
-      console.error('Error saving conversation:', err);
-      setTimeout(() => {
-        const reply = `I am running in local-only fallback mode. How can I assist you?`;
-        setChatHistory((prev) => [...prev, { sender: 'ai', text: reply }]);
-        setIsAiTyping(false);
-      }, 1000);
+      console.error('Error querying RAG:', err);
+      setIsAiTyping(false);
+      showToast(err.message || 'Error running query.', 'error');
+      setChatHistory((prev) => {
+        // Remove empty placeholder if present at the end
+        let copy = [...prev];
+        if (copy.length > 0 && copy[copy.length - 1].sender === 'ai' && !copy[copy.length - 1].text) {
+          copy.pop();
+        }
+        return [
+          ...copy,
+          { sender: 'ai', text: `Failed to generate response: ${err.message || 'Unknown server error.'}` }
+        ];
+      });
     }
   };
 

@@ -25,11 +25,21 @@ const AIPanel = ({
   onDeleteConversation,
 }) => {
   const chatEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
+  const isNearBottomRef = useRef(true);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [deleteTargetId, setDeleteTargetId] = useState(null);
+
+  const handleScroll = () => {
+    if (chatContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+      const threshold = 100; // px threshold
+      isNearBottomRef.current = scrollHeight - scrollTop - clientHeight <= threshold;
+    }
+  };
 
   const fetchConversations = async () => {
     try {
@@ -61,9 +71,11 @@ const AIPanel = ({
     };
   }, [isDropdownOpen]);
 
-  // Auto-scroll to bottom of chat
+  // Auto-scroll to bottom of chat if user is near the bottom
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isNearBottomRef.current) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [chatHistory, isAiTyping]);
 
   const hasAllSelected = selectedFolders.has('all');
@@ -232,7 +244,11 @@ const AIPanel = ({
       </div>
 
       {/* Chat messages */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div
+        ref={chatContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-3 space-y-3"
+      >
         {chatHistory.map((msg, i) => {
           const isAi = msg.sender === 'ai';
           return (

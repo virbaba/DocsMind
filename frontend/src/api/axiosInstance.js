@@ -1,12 +1,15 @@
 import axios from 'axios';
 
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 const axiosInstance = axios.create({
-  baseURL: 'http://localhost:3000/api',
+  baseURL: API_URL,
   withCredentials: true, // send cookies with every request
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
 
 // ── Response interceptor: silent token refresh on 401 ──
 let isRefreshing = false;
