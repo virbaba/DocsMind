@@ -6,6 +6,7 @@ import { FiLogOut, FiX, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 // Imports from extracted files
 import useResize from '../hooks/useResize.js';
 import { INITIAL_CHAT } from '../data/dashboardData.js';
+import { useDebounce } from '../hooks/useDebounce.js';
 import Divider from '../components/dashboard/Divider.jsx';
 import FolderSidebar from '../components/dashboard/FolderSidebar.jsx';
 import DocumentPanel from '../components/dashboard/DocumentPanel.jsx';
@@ -29,6 +30,7 @@ const Dashboard = () => {
   const [viewedFolder, setViewedFolder] = useState('all'); // switches middle panel view
   const [chatFolders, setChatFolders] = useState(new Set(['all'])); // multiple chat folder context
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
   const handleToggleFolder = (folderId) => {
     setChatFolders((prev) => {
@@ -156,8 +158,8 @@ const Dashboard = () => {
   const visibleDocs = documents.filter((doc) => {
     const matchFolder = viewedFolder === 'all' || doc.folder === viewedFolder;
     const matchSearch =
-      doc.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      doc.category.toLowerCase().includes(searchQuery.toLowerCase());
+      doc.fullName.toLowerCase().includes(debouncedSearchQuery.toLowerCase()) ||
+      doc.category.toLowerCase().includes(debouncedSearchQuery.toLowerCase());
     return matchFolder && matchSearch;
   });
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiSearch, FiFolder, FiPlus, FiCpu, FiMoreVertical, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { useDebounce } from '../../hooks/useDebounce';
 
 const FolderItem = ({
   folder,
@@ -156,9 +157,10 @@ const FolderSidebar = ({
   onDeleteFolder,
 }) => {
   const [folderQuery, setFolderQuery] = useState('');
+  const debouncedFolderQuery = useDebounce(folderQuery, 250);
 
   const filteredFolders = folders.filter((folder) =>
-    folder.name.toLowerCase().includes(folderQuery.toLowerCase())
+    folder.name.toLowerCase().includes(debouncedFolderQuery.toLowerCase())
   );
 
   return (
