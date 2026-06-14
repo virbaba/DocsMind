@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { FiLogOut, FiX, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
@@ -20,6 +20,9 @@ import axiosInstance, { API_URL } from '../api/axiosInstance.js';
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  // Ref for aborting active chat query request
+  const abortControllerRef = useRef(null);
 
   // Panel drag-resize sizes
   const sidebar = useResize({ minPx: 140, maxPx: 320, initialPx: 180, side: 'right' });
@@ -253,6 +256,32 @@ const Dashboard = () => {
     }
   };
 
+  // AI query abort handler
+  const handleAbortChat = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    setIsAiTyping(false);
+    setChatHistory((prev) => {
+      if (prev.length === 0) return prev;
+      const copy = [...prev];
+      const lastMsg = copy[copy.length - 1];
+      if (lastMsg.sender === 'ai') {
+        const suffix = lastMsg.text ? '\n\n*(Query aborted by user)*' : '*(Query aborted by user)*';
+        copy[copy.length - 1] = {
+          ...lastMsg,
+          text: lastMsg.text + suffix
+        };
+      } else {
+        copy.push({
+          sender: 'ai',
+          text: '*(Query aborted by user)*'
+        });
+      }
+      return copy;
+    });
+  };
+
   // AI chat send handler
   const handleSendChat = async (e, overrideMessage) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -265,6 +294,9 @@ const Dashboard = () => {
     setChatInput('');
     setChatHistory(updatedHistoryWithUser);
     setIsAiTyping(true);
+
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       let activeConvId = currentConversationId;
@@ -283,7 +315,8 @@ const Dashboard = () => {
             documentIds: Array.from(selectedDocs),
           }
         }),
-        credentials: 'include' // Sends HTTP-only cookies/tokens
+        credentials: 'include', // Sends HTTP-only cookies/tokens
+        signal: controller.signal
       });
 
       // Handle token expiration/refresh for native fetch stream
@@ -292,7 +325,9 @@ const Dashboard = () => {
         try {
           const cloneText = await response.clone().text();
           errData = JSON.parse(cloneText);
-        } catch (_) {}
+        } catch {
+          // ignore error
+        }
 
         if (errData && errData.code === 'TOKEN_EXPIRED') {
           console.log('[Streaming Query] Access token expired/missing. Attempting token refresh...');
@@ -312,7 +347,8 @@ const Dashboard = () => {
                   documentIds: Array.from(selectedDocs),
                 }
               }),
-              credentials: 'include'
+              credentials: 'include',
+              signal: controller.signal
             });
           } catch (refreshErr) {
             console.error('[Streaming Query] Token refresh failed:', refreshErr);
@@ -328,12 +364,11 @@ const Dashboard = () => {
         try {
           const parsed = JSON.parse(errText);
           errMsg = parsed.message || errMsg;
-        } catch (_) {}
+        } catch {
+          // ignore error
+        }
         throw new Error(errMsg);
       }
-
-      // Hide the initial bouncing loading dots as soon as stream starts receiving data
-      setIsAiTyping(false);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -386,8 +421,11 @@ const Dashboard = () => {
       }
 
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('Chat fetch query aborted by user.');
+        return;
+      }
       console.error('Error querying RAG:', err);
-      setIsAiTyping(false);
       showToast(err.message || 'Error running query.', 'error');
       setChatHistory((prev) => {
         // Remove empty placeholder if present at the end
@@ -400,6 +438,9 @@ const Dashboard = () => {
           { sender: 'ai', text: `Failed to generate response: ${err.message || 'Unknown server error.'}` }
         ];
       });
+    } finally {
+      setIsAiTyping(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -676,6 +717,7 @@ const Dashboard = () => {
               onNewChat={handleNewChat}
               onLoadConversation={handleLoadConversation}
               onDeleteConversation={handleDeleteConversation}
+              onAbortChat={handleAbortChat}
             />
           </>
         )}

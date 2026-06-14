@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FiCpu, FiX, FiFolder, FiChevronRight, FiSend, FiChevronDown, FiPlus, FiClock, FiTrash2, FiMic, FiMicOff } from 'react-icons/fi';
-import { CgSpinner } from 'react-icons/cg';
+import { FiCpu, FiX, FiFolder, FiChevronRight, FiSend, FiChevronDown, FiPlus, FiClock, FiTrash2, FiMic, FiMicOff, FiSquare } from 'react-icons/fi';
 import axiosInstance from '../../api/axiosInstance.js';
 import ConfirmDeleteModal from './ConfirmDeleteModal.jsx';
 
@@ -13,7 +12,6 @@ const AIPanel = ({
   onChatInputChange,
   onSendChat,
   isAiTyping = false,
-  user,
   folders = [],
   selectedFolders = new Set(['all']),
   onToggleFolder,
@@ -23,6 +21,7 @@ const AIPanel = ({
   onNewChat,
   onLoadConversation,
   onDeleteConversation,
+  onAbortChat,
 }) => {
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
@@ -338,20 +337,23 @@ const AIPanel = ({
                   </div>
                 )}
                 <div
-                  className={`rounded-2xl py-2.5 px-3.5 text-xs leading-relaxed select-text ${
+                  className={`rounded-2xl py-2.5 px-3.5 text-xs leading-relaxed select-text break-words ${
                     isAi
                       ? 'bg-[#1a1c2e] border border-[#20223a] text-[#d4d4d8] rounded-tl-none'
                       : 'bg-[#5b4fd4] text-white rounded-tr-none'
                   }`}
                 >
                   {msg.text}
+                  {isAi && isAiTyping && i === chatHistory.length - 1 && (
+                    <span className="inline-block w-1 h-3 bg-[#a29bfe] ml-1 animate-pulse align-middle" />
+                  )}
                 </div>
               </div>
             </div>
           );
         })}
 
-        {isAiTyping && (
+        {isAiTyping && (chatHistory.length === 0 || chatHistory[chatHistory.length - 1].sender !== 'ai') && (
           <div className="flex gap-2">
             <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[#5b4fd4] to-[#7b70e7] flex items-center justify-center shrink-0 text-[9px] font-bold text-white mt-0.5">
               AI
@@ -395,18 +397,25 @@ const AIPanel = ({
             {isListening ? <FiMicOff size={12} /> : <FiMic size={12} />}
           </button>
         </div>
-        <button
-          type="submit"
-          id="chat-submit-btn"
-          disabled={!chatInput.trim() || isAiTyping || isListening}
-          className="w-8 h-8 bg-gradient-to-tr from-[#5b4fd4] to-[#4035a8] hover:from-[#4b3ec2] rounded-xl flex items-center justify-center cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_rgba(91,79,212,0.3)] shrink-0"
-        >
-          {isAiTyping ? (
-            <CgSpinner size={13} className="text-white animate-spin" />
-          ) : (
+        {isAiTyping ? (
+          <button
+            type="button"
+            onClick={onAbortChat}
+            title="Stop generating"
+            className="w-8 h-8 bg-red-600 hover:bg-red-700 rounded-xl flex items-center justify-center cursor-pointer transition-all shadow-[0_2px_8px_rgba(220,38,38,0.3)] shrink-0"
+          >
+            <FiSquare size={10} className="text-white fill-white" />
+          </button>
+        ) : (
+          <button
+            type="submit"
+            id="chat-submit-btn"
+            disabled={!chatInput.trim() || isListening}
+            className="w-8 h-8 bg-gradient-to-tr from-[#5b4fd4] to-[#4035a8] hover:from-[#4b3ec2] rounded-xl flex items-center justify-center cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-[0_2px_8px_rgba(91,79,212,0.3)] shrink-0"
+          >
             <FiSend size={13} className="text-white" />
-          )}
-        </button>
+          </button>
+        )}
       </form>
 
       {/* History Drawer */}
