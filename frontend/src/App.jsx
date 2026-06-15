@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -10,23 +10,37 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 
 // Modern, dark-themed page fallback loader
-const PageLoader = () => (
-  <div className="h-screen w-screen bg-[#0c0d12] flex items-center justify-center font-sans">
-    <div className="flex flex-col items-center gap-3">
-      {/* Premium violet spinning loader */}
-      <div className="w-10 h-10 border-[3.5px] border-[#5b4fd4]/20 border-t-[#5b4fd4] rounded-full animate-spin"></div>
-      <span className="text-[10px] text-[#52525b] tracking-[0.2em] uppercase font-bold animate-pulse">
-        Loading DocsMind
-      </span>
+const PageLoader = () => {
+  const [showWarning, setShowWarning] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowWarning(true), 3500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="h-screen w-screen bg-[#0c0d12] flex items-center justify-center font-sans px-4">
+      <div className="flex flex-col items-center gap-3">
+        {/* Premium violet spinning loader */}
+        <div className="w-10 h-10 border-[3.5px] border-[#5b4fd4]/20 border-t-[#5b4fd4] rounded-full animate-spin"></div>
+        <span className="text-[10px] text-[#52525b] tracking-[0.2em] uppercase font-bold animate-pulse">
+          Loading DocsMind
+        </span>
+        {showWarning && (
+          <span className="text-[10px] text-[#71717a] max-w-xs text-center leading-relaxed mt-1 font-semibold animate-pulse">
+            Waking up the cloud server... (This takes about 20-30 seconds after inactivity)
+          </span>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const AppRoutes = () => {
   const { isAuthenticated, isLoading } = useAuth();
 
   // Don't render routes until auth state is resolved
-  if (isLoading) return null;
+  if (isLoading) return <PageLoader />;
 
   return (
     <Routes>
